@@ -1,0 +1,10 @@
+# Composition layer contributed by dsh-camptv.
+#
+# The row mounts the package, which registers the CampTV generation tools
+# (camptv_generate_image, camptv_generate_video, camptv_task, camptv_projects)
+# for every model in this profile. All settings are optional; defaults point at
+# ~/.camptv/bin/cli.cjs and the CLI's own login config.
+- insert:
+    - id: dsh-camptv
+      name: 'dsh-camptv'
+      config: {}

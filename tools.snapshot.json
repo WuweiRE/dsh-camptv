@@ -1,0 +1,882 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-03T11:39:18.650Z",
+  "server": "MCP_TOOLS @ 0.6.464",
+  "tools": [
+    {
+      "name": "camptv_whoami",
+      "title": "当前账号",
+      "description": "查看当前 CampTV 令牌对应的账号与权限，用于确认登录成功。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "camptv_projects",
+      "title": "项目与额度",
+      "description": "列出画布项目（id、名称、是否可写），以及积分余额、视频渠道额度和生成并发。提交生成前先调用。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "camptv/result": "json"
+      }
+    },
+    {
+      "name": "camptv_generate_image",
+      "title": "生成图片（扣积分）",
+      "description": "文生图 / 图生图：建节点、连参考图并提交生成，默认放在“DSH 生成”项目。令牌没有“直接提交”权限时，第一次只返回报价和 confirm_token（不扣费）；把费用告诉用户，同意后带 confirm_token 再调用。提交后返回 pending，用 camptv_task 取结果，不要重复提交。透明 PNG 需 model=gpt-image-2.5-flare、channel=priority、background=transparent、output_format=png，提示词里不要写透明背景。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12000
+          },
+          "model": {
+            "type": "string",
+            "description": "图片模型 id，留空用默认。"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "economy",
+              "priority"
+            ],
+            "description": "economy=优惠渠道（默认），priority=正价渠道。"
+          },
+          "ratio": {
+            "type": "string",
+            "enum": [
+              "1:1",
+              "16:9",
+              "9:16",
+              "4:3",
+              "3:4",
+              "3:2",
+              "2:3",
+              "5:4",
+              "4:5",
+              "21:9",
+              "9:21",
+              "1:2",
+              "2:1",
+              "1:3",
+              "3:1"
+            ]
+          },
+          "quality": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "xhigh",
+              "max"
+            ]
+          },
+          "output_format": {
+            "type": "string",
+            "enum": [
+              "png",
+              "jpeg",
+              "webp"
+            ]
+          },
+          "background": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "transparent",
+              "opaque"
+            ]
+          },
+          "resolution": {
+            "type": "string",
+            "enum": [
+              "1k",
+              "2k",
+              "4k",
+              "1024px",
+              "2048px",
+              "4096px"
+            ]
+          },
+          "reference_images": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "已有画布节点 ID"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fileName": {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    "mimeType": {
+                      "type": "string"
+                    },
+                    "dataBase64": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "fileName",
+                    "dataBase64"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "maxItems": 16,
+            "description": "参考图：画布节点 ID，或内联文件。"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "project": {
+            "type": "string",
+            "format": "uuid",
+            "description": "目标项目；留空用“DSH 生成”。"
+          },
+          "confirm_token": {
+            "type": "string",
+            "description": "报价返回的确认令牌；用户同意费用后才传。"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "_meta": {
+        "camptv/fileArgs": {
+          "reference_images": "image[]"
+        },
+        "camptv/result": "generation"
+      }
+    },
+    {
+      "name": "camptv_generate_video",
+      "title": "生成视频（扣积分）",
+      "description": "文生视频 / 参考生视频 / 首尾帧：建节点、连参考素材并提交生成，默认放在“DSH 生成”项目。令牌没有“直接提交”权限时，第一次只返回报价和 confirm_token（不扣费），用户同意后带 confirm_token 再调用。视频通常 1–10 分钟，提交后返回 pending，用 camptv_task 取结果，不要重复提交。economy 渠道更便宜，但有月度额度和并发限制。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12000
+          },
+          "model": {
+            "type": "string",
+            "description": "视频模型 id，留空用渠道默认（economy: MiniMax H3，priority: Seedance 2.0）。"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "economy",
+              "priority"
+            ]
+          },
+          "duration": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60
+          },
+          "ratio": {
+            "type": "string",
+            "enum": [
+              "adaptive",
+              "16:9",
+              "9:16",
+              "1:1",
+              "4:3",
+              "3:4",
+              "3:2",
+              "2:3",
+              "21:9"
+            ]
+          },
+          "resolution": {
+            "type": "string"
+          },
+          "reference_images": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "已有画布节点 ID"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fileName": {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    "mimeType": {
+                      "type": "string"
+                    },
+                    "dataBase64": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "fileName",
+                    "dataBase64"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "maxItems": 12
+          },
+          "reference_videos": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "已有画布节点 ID"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fileName": {
+                      "type": "string",
+                      "maxLength": 255
+                    },
+                    "mimeType": {
+                      "type": "string"
+                    },
+                    "dataBase64": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "fileName",
+                    "dataBase64"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "maxItems": 3
+          },
+          "first_frame": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "description": "已有画布节点 ID"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "fileName": {
+                    "type": "string",
+                    "maxLength": 255
+                  },
+                  "mimeType": {
+                    "type": "string"
+                  },
+                  "dataBase64": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "fileName",
+                  "dataBase64"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "last_frame": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "description": "已有画布节点 ID"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "fileName": {
+                    "type": "string",
+                    "maxLength": 255
+                  },
+                  "mimeType": {
+                    "type": "string"
+                  },
+                  "dataBase64": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "fileName",
+                  "dataBase64"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "project": {
+            "type": "string",
+            "format": "uuid",
+            "description": "目标项目；留空用“DSH 生成”。"
+          },
+          "confirm_token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": true
+      },
+      "_meta": {
+        "camptv/fileArgs": {
+          "reference_images": "image[]",
+          "reference_videos": "video[]",
+          "first_frame": "image",
+          "last_frame": "image"
+        },
+        "camptv/result": "generation"
+      }
+    },
+    {
+      "name": "camptv_task",
+      "title": "查看生成结果",
+      "description": "按项目和节点查看生成进度；服务端最多等待 wait_seconds（≤25）秒。完成后返回结果地址 output.url。还在运行就稍后再调，不要重新提交。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "node": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "wait_seconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 25
+          }
+        },
+        "required": [
+          "project",
+          "node"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "_meta": {
+        "camptv/result": "task"
+      }
+    },
+    {
+      "name": "camptv_create_project",
+      "title": "新建项目",
+      "description": "新建一个画布项目。传 clientProjectKey 可幂等（同一个 key 重复调用返回同一项目）。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "clientProjectKey": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[a-zA-Z0-9._:-]+$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "camptv_get_canvas",
+      "title": "读取画布",
+      "description": "读取项目画布的节点摘要与连线。节点含 id、类型、标题、状态、提示词/文本摘要与结果 URL。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "image",
+              "video",
+              "audio",
+              "note"
+            ],
+            "description": "只返回某类节点（可选）。"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "camptv_create_node",
+      "title": "新建节点",
+      "description": "在画布上新建一个节点（文本/图片/视频/音频/便签），可同时连接上游节点。只建节点，不会自动生成。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "image",
+              "video",
+              "audio",
+              "note"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "prompt": {
+            "type": "string",
+            "maxLength": 12000,
+            "description": "图片/视频/音频节点的提示词。"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 12000,
+            "description": "文本节点内容。"
+          },
+          "sourceNodeIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 30,
+            "description": "连到本节点的上游节点（如角色图、文案）。"
+          },
+          "afterNodeId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "放在某个节点右侧（可选）。"
+          },
+          "modelId": {
+            "type": "string"
+          },
+          "ratio": {
+            "type": "string",
+            "description": "如 16:9、9:16。"
+          },
+          "resolution": {
+            "type": "string"
+          },
+          "duration": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 600
+          },
+          "videoMode": {
+            "type": "string",
+            "enum": [
+              "reference-video",
+              "first-frame",
+              "first-last-frame",
+              "video-edit"
+            ]
+          },
+          "videoChannel": {
+            "type": "string",
+            "enum": [
+              "economy",
+              "priority"
+            ]
+          },
+          "clientNodeKey": {
+            "type": "string",
+            "maxLength": 128,
+            "pattern": "^[a-zA-Z0-9._:-]+$",
+            "description": "幂等键（可选）。"
+          }
+        },
+        "required": [
+          "projectId",
+          "type"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "camptv_connect_nodes",
+      "title": "连接节点",
+      "description": "把上游节点连到下游节点的输入（例如把角色图连到视频节点作为参考）。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceNodeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "targetNodeId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "projectId",
+          "sourceNodeId",
+          "targetNodeId"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "camptv_upload_asset",
+      "title": "上传素材",
+      "description": "把图片/视频/音频/文本素材（base64，≤20MB）上传到项目，可直接建成素材节点并连到目标节点。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fileName": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "带扩展名，如 hero.png。"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "dataBase64": {
+            "type": "string",
+            "description": "文件内容的 base64（不带 data: 前缀）。"
+          },
+          "createNode": {
+            "type": "boolean",
+            "description": "默认 true：同时在画布上建素材节点。"
+          },
+          "targetNodeId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "建好的素材节点连到这个节点（可选）。"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 120
+          }
+        },
+        "required": [
+          "projectId",
+          "fileName",
+          "dataBase64"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "camptv_submit_generation",
+      "title": "提交生成（扣积分，两步确认）",
+      "description": "对一个节点提交生成任务，按节点设置扣积分。两步：第一次不传 confirmToken，只返回节点摘要、预估积分与 confirmToken（10 分钟有效，不扣费）；把摘要和费用告诉用户并取得同意后，再带 confirmToken 调用一次才会真正提交并返回 jobId（用 camptv_get_job 轮询）。不要批量替用户提交。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nodeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "prompt": {
+            "type": "string",
+            "maxLength": 12000,
+            "description": "覆盖本次提交的提示词（可选）。"
+          },
+          "confirmToken": {
+            "type": "string",
+            "description": "第一步返回的确认令牌；用户同意后才传。"
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "description": "幂等键；重试时传同一个值，避免重复扣费。"
+          },
+          "confirmGeneralCreditFallback": {
+            "type": "boolean",
+            "description": "项目积分不足时是否允许改用通用积分；仅在用户明确同意后为 true。"
+          }
+        },
+        "required": [
+          "projectId",
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "camptv_get_job",
+      "title": "查询任务",
+      "description": "查询生成任务状态（pending/running/completed/failed），完成后返回结果 URL 或文本。建议 5–15 秒轮询一次。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "jobId"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "camptv_get_node_output",
+      "title": "节点结果",
+      "description": "读取节点当前结果（URL/文本）与历史结果。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "nodeId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "projectId",
+          "nodeId"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "camptv_describe_canvas_tool",
+      "title": "画布编辑工具说明",
+      "description": "返回某个画布编辑工具的参数 JSON Schema，调用 camptv_canvas_edit 前先查看。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "type": "string",
+            "enum": [
+              "inspect_canvas",
+              "duplicate_subgraph",
+              "duplicate_blueprint_variant",
+              "edit_nodes",
+              "create_nodes",
+              "connect_nodes",
+              "replace_materials",
+              "delete_canvas_elements",
+              "validate_blueprint",
+              "replace_node_text",
+              "create_storyboard"
+            ]
+          }
+        },
+        "required": [
+          "tool"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "camptv_canvas_edit",
+      "title": "画布编辑（预览/应用）",
+      "description": "执行画布编辑工具：复制链路、批量建节点并连线、局部改提示词（replace_node_text 用 edits 或 fullText）、一键建分镜（create_storyboard）、替换素材、删除等。默认 mode=preview 只返回变更预览与 baseGraphHash；用户确认后用 mode=apply 并传 expectedGraphHash 写入。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tool": {
+            "type": "string",
+            "enum": [
+              "inspect_canvas",
+              "duplicate_subgraph",
+              "duplicate_blueprint_variant",
+              "edit_nodes",
+              "create_nodes",
+              "connect_nodes",
+              "replace_materials",
+              "delete_canvas_elements",
+              "validate_blueprint",
+              "replace_node_text",
+              "create_storyboard"
+            ]
+          },
+          "arguments": {
+            "type": "object",
+            "description": "工具参数，见 camptv_describe_canvas_tool。"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "preview",
+              "apply"
+            ]
+          },
+          "expectedGraphHash": {
+            "type": "string",
+            "description": "apply 时传 preview 返回的 plan.baseGraphHash。"
+          },
+          "selectedNodeIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "maxItems": 120
+          },
+          "requestId": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "projectId",
+          "tool",
+          "arguments"
+        ],
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    }
+  ]
+}

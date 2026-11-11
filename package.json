@@ -1,0 +1,48 @@
+{
+  "name": "dsh-camptv",
+  "version": "1.2.0",
+  "description": "CampTV image and video generation tools for DeepSeek Harness models, backed by the CampTV CLI and the unified CampTV Agent tool catalog.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "tools.snapshot.json",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE",
+    "README.zh.md"
+  ],
+  "license": "MIT",
+  "author": "WuweiRE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WuweiRE/dsh-camptv.git"
+  },
+  "bugs": "https://github.com/WuweiRE/dsh-camptv/issues",
+  "homepage": "https://github.com/WuweiRE/dsh-camptv#readme",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "camptv",
+    "image-generation",
+    "video-generation"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
